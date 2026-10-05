@@ -1,0 +1,5 @@
+.git/
+.github/
+node_modules/
+config/config.envpackage-lock.json
+package-lock.json
