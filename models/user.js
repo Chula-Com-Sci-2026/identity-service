@@ -1,7 +1,7 @@
-//  -- เปิดใช้ Extension สำหรับสร้าง UUID
+// //  -- เปิดใช้ Extension สำหรับสร้าง UUID
 // CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
-// -- ตารางผู้ใช้งานหลัก
+// // -- ตารางผู้ใช้งานหลัก
 // CREATE TABLE users (
 //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 //     email VARCHAR(255) UNIQUE NOT NULL,
@@ -20,7 +20,7 @@
 //     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 // );
 
-// -- ตารางจัดเก็บ Refresh Token (รองรับ login, logout, refreshToken)
+// // -- ตารางจัดเก็บ Refresh Token (รองรับ login, logout, refreshToken)
 // CREATE TABLE refresh_tokens (
 //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 //     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -32,7 +32,7 @@
 //     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 // );
 
-// -- ตาราง OTP (รองรับ sendPhoneOtp, verifyPhoneOtp, verifyEmailOtp)
+// // -- ตาราง OTP (รองรับ sendPhoneOtp, verifyPhoneOtp, verifyEmailOtp)
 // CREATE TABLE otps (
 //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 //     target VARCHAR(255) NOT NULL,          -- เบอร์โทรศัพท์ หรือ Email
@@ -45,7 +45,7 @@
 //     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 // );
 
-// -- ตาราง Token รีเซ็ตรหัสผ่าน (รองรับ requestPasswordReset, resetPassword)
+// // -- ตาราง Token รีเซ็ตรหัสผ่าน (รองรับ requestPasswordReset, resetPassword)
 // CREATE TABLE password_reset_tokens (
 //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 //     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
