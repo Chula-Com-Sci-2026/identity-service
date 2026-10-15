@@ -1,0 +1,54 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: identity_rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app_network
+
+  identity-api:
+    build: .
+    container_name: identity_service
+    restart: always
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./config/config.env
+    environment:
+      - PORT=5000
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - DB_HOST=host.docker.internal
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - app_network
+
+  identity-worker:
+    build: .
+    container_name: identity_worker
+    restart: alwaysภภ
+    command: ["node", "workers/notificationWorker.js"]
+    env_file:
+      - ./config/config.env
+    environment:
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    driver: bridge

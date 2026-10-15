@@ -1,33 +1,47 @@
-// config/rabbitmq.js
-const amqp = require('amqplib');
+const amqp = require("amqplib");
 
 let channel = null;
 
 const connectRabbitMQ = async () => {
   try {
-    const connection = await amqp.connect(process.env.RABBITMQ_URL || 'amqp://localhost:5672');
+    const queueName = process.env.NOTIFICATION_QUEUE || "notification_queue";
+    const rabbitUrl = process.env.RABBITMQ_URL || "amqp://localhost:5672";
+
+    const connection = await amqp.connect(rabbitUrl);
     channel = await connection.createChannel();
-    
-    // ประกาศ Queue แบบ durable (ไม่หายเมื่อ broker restart)
-    await channel.assertQueue(process.env.NOTIFICATION_QUEUE || 'notification_queue', {
-      durable: true,
+
+    // สร้าง Queue
+    await channel.assertQueue(queueName, { durable: true });
+    console.log("Connected to RabbitMQ and Channel is ready");
+
+    connection.on("close", () => {
+      console.error("RabbitMQ connection closed. Reconnecting...");
+      channel = null;
+      setTimeout(connectRabbitMQ, 5000);
     });
 
-    console.log('RabbitMQ Producer connected successfully');
+    connection.on("error", (err) => {
+      console.error("RabbitMQ connection error:", err.message);
+    });
+
+    return channel;
   } catch (error) {
-    console.error('RabbitMQ connection failed:', error.message);
+    console.error("Failed to connect to RabbitMQ:", error.message);
+    channel = null;
+    setTimeout(connectRabbitMQ, 5000);
+    throw error;
   }
 };
 
-const publishToQueue = async (queueName, data) => {
+const sendNotification = async (payload) => {
+  // หาก channel ยังไม่พร้อม ให้ดักไว้
   if (!channel) {
-    throw new Error('RabbitMQ channel is not available');
+    throw new Error("RabbitMQ channel is not ready");
   }
-  return channel.sendToQueue(
-    queueName,
-    Buffer.from(JSON.stringify(data)),
-    { persistent: true } // ข้อความจะถูกเขียนลง Disk เพื่อป้องกันการสูญหาย
-  );
+
+  const queueName = process.env.NOTIFICATION_QUEUE || "notification_queue";
+  const messageBuffer = Buffer.from(JSON.stringify(payload));
+  return channel.sendToQueue(queueName, messageBuffer, { persistent: true });
 };
 
-module.exports = { connectRabbitMQ, publishToQueue };
+module.exports = { connectRabbitMQ, sendNotification };

@@ -1,0 +1,478 @@
+{
+  "info": {
+    "_postman_id": "30cabb88-2017-4156-963a-5584802852fc",
+    "name": "RunningBuddyApps",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "45710112",
+    "_collection_link": "https://go.postman.co/collection/45710112-30cabb88-2017-4156-963a-5584802852fc?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Register",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"email\": \"runningbuddyapps00@gmail.com\",\n    \"phoneNumber\": \"0911117773\",\n    \"password\": \"12345678\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/api/v1/auth/register",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "auth",
+            "register"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Send Email OTP",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"runningbuddyapps00@gmail.com\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/api/v1/auth/email/send-otp",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "auth",
+            "email",
+            "send-otp"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Send Phone OTP",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"phoneNumber\": \"0911117773\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/api/v1/auth/phone/send-otp",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "auth",
+            "phone",
+            "send-otp"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Verify Email OTP",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"email\": \"runningbuddyapps00@gmail.com\",\n    \"otpCode\": \"819419\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/api/v1/auth/email/verify-otp",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "auth",
+            "email",
+            "verify-otp"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Verify Phone OTP",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"phoneNumber\": \"0911117773\",\n  \"otpCode\": \"123456\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/api/v1/auth/phone/verify-otp",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "auth",
+            "phone",
+            "verify-otp"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) {\n    const response = pm.response.json();\n    pm.collectionVariables.set(\"ACCESSTOKEN\", response.accessToken);\n    pm.collectionVariables.set(\"REFRESHTOKEN\", response.refreshToken);\n    pm.collectionVariables.set(\"USERID\", response.user.id);\n}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"email\": \"runningbuddyapps00@gmail.com\",\n    \"password\": \"12345678\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/api/v1/auth/login",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "auth",
+            "login"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Logout",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refreshToken\": \"{{REFRESHTOKEN}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/api/v1/auth/logout",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "auth",
+            "logout"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Refresh Token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) {\n    const response = pm.response.json();\n    pm.collectionVariables.set(\"ACCESSTOKEN\", response.accessToken);\n}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refreshToken\": \"{{REFRESHTOKEN}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/api/v1/auth/refresh-token",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "auth",
+            "refresh-token"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Request Password Reset",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) {\n    const response = pm.response.json();\n    pm.collectionVariables.set(\"DEVOTPPREVIEW\", response.devOtpPreview);\n}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"runningbuddyapps00@gmail.com\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/api/v1/auth/request-password-reset",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "auth",
+            "request-password-reset"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Reset Password",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"runningbuddyapps00@gmail.com\",\n  \"otpCode\": {{DEVOTPPREVIEW}},\n  \"newPassword\": \"12345678\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/api/v1/auth/password-reset",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "auth",
+            "password-reset"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Lock Account",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userId\": \"{{USERID}}\",\n  \"isLocked\": true,\n  \"reason\": \"Suspicious activity detected\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/api/v1/auth/lock-account",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "auth",
+            "lock-account"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Unlock Account",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userId\": \"{{USERID}}\",\n  \"isLocked\": false\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/api/v1/auth/lock-account",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "auth",
+            "lock-account"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "URL",
+      "value": ""
+    },
+    {
+      "key": "ACCESSTOKEN",
+      "secret": true
+    },
+    {
+      "key": "REFRESHTOKEN",
+      "secret": true
+    },
+    {
+      "key": "DEVOTPPREVIEW",
+      "value": ""
+    },
+    {
+      "key": "USERID",
+      "value": ""
+    }
+  ]
+}
