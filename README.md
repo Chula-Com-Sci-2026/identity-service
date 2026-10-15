@@ -45,6 +45,8 @@ IDENTITY-SERVICE/
 │   └── rabbitmq.js            # Producer for connecting and pushing jobs to RabbitMQ
 ├── controllers/
 │   └── auth.js                # Auth Controller & Business Logic
+├── database/
+│   └── identify-service-db    # Database(PostgreSQL)
 ├── middleware/
 │   └── auth.js                # JWT Verification Middleware (protect)
 ├── models/
