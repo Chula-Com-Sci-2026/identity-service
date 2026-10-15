@@ -49,6 +49,8 @@ IDENTITY-SERVICE/
 │   └── auth.js                # JWT Verification Middleware (protect)
 ├── models/
 │   └── user.js                # Data Queries & Schema Definitions
+├── postman/
+│   └── postman_collection.js  # API Collection
 ├── routes/
 │   └── auth.js                # Express Route Declarations
 ├── utils/
