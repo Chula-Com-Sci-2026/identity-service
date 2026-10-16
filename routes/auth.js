@@ -1,20 +1,13 @@
 const express = require("express");
 const {
-  register,
   sendEmailOtp,
   verifyEmailOtp,
-  sendPhoneOtp,
-  verifyPhoneOtp,
-  login,
-  logout,
-  refreshToken,
   requestPasswordReset,
   resetPassword,
-  lockAccount,
 } = require("../controllers/auth");
 
 const router = express.Router();
-const { protect } = require("../middleware/auth");
+const { register, sendPhoneOtp, verifyPhoneOtp, login, logout, refreshToken } = require("../controllers/session");
 
 router.post("/register", register);
 
@@ -34,6 +27,8 @@ router.post("/logout", logout);
 
 // Refresh Token
 router.post("/refresh-token", refreshToken);
+router.post("/refresh", refreshToken);
+router.post("/verify-otp", verifyPhoneOtp);
 
 // Request Password Reset
 router.post("/request-password-reset", requestPasswordReset);
@@ -43,7 +38,7 @@ router.post("/password-reset", resetPassword);
 
 
 // Lock Account
-router.post("/lock-account", lockAccount);
+// Admin account locking is outside the delivery scope; do not expose an unguarded route.
 
 
 module.exports = router;

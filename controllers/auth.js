@@ -2,435 +2,21 @@ const bcrypt = require("bcryptjs");
 const SALT_ROUNDS = 10;
 const pool = require("../config/db");
 const crypto = require("node:crypto");
-const jwt = require("jsonwebtoken");
 const sendEmail = require("../utils/sendEmail");
-const sendSms = require("../utils/sendSms");
-const MAX_FAILED_ATTEMPTS = 5;
 const { sendNotification } = require("../config/rabbitmq");
 
 const generateOtp = () => {
-  const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+  const otpCode = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
   const otpHash = crypto.createHash("sha256").update(otpCode).digest("hex");
   return { otpCode, otpHash };
 };
 
-const generateTokens = (user) => {
-  const payload = {
-    id: user.id,
-    email: user.email,
-  };
 
-  const accessToken = jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, {
-    expiresIn: process.env.ACCESS_TOKEN_EXPIRY,
-  });
 
-  const refreshToken = jwt.sign(payload, process.env.REFRESH_TOKEN_SECRET, {
-    expiresIn: process.env.REFRESH_TOKEN_EXPIRY,
-  });
 
-  return { accessToken, refreshToken };
-};
 
-exports.register = async (req, res, next) => {
-  try {
-    const { email, phoneNumber, password } = req.body;
 
-    if (!email || !password) {
-      return res
-        .status(400)
-        .json({ message: "Email and password are required" });
-    }
 
-    // Hash Password
-    const salt = await bcrypt.genSalt(SALT_ROUNDS);
-    const passwordHash = await bcrypt.hash(password, salt);
-
-    const query = `
-  INSERT INTO users (email, phone_number, password_hash)
-  VALUES ($1, $2, $3)
-  RETURNING id, email, phone_number, created_at;
-`;
-    const result = await pool.query(query, [
-      email,
-      phoneNumber || null,
-      passwordHash,
-    ]);
-
-    return res.status(201).json({
-      message: "User registered successfully",
-      user: result.rows[0],
-    });
-  } catch (error) {
-    if (error.code === "23505") {
-      return res
-        .status(409)
-        .json({ message: "Email or phone number already in use" });
-    }
-    next(error);
-  }
-};
-
-exports.login = async (req, res, next) => {
-  try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: "Email and password are required",
-      });
-    }
-
-    const normalizedEmail = email.toLowerCase().trim();
-
-    // 1. ดึงข้อมูล User พร้อมสถานะการล็อก
-    const userResult = await pool.query(
-      `SELECT id, email, password_hash, is_email_verified, 
-              is_locked, locked_at, lock_reason, failed_login_attempts 
-       FROM users 
-       WHERE email = $1`,
-      [normalizedEmail],
-    );
-
-    if (userResult.rows.length === 0) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid email or password",
-      });
-    }
-
-    const user = userResult.rows[0];
-
-    // 2. ตรวจสอบว่าบัญชีถูกล็อกอยู่หรือไม่
-    if (user.is_locked) {
-      return res.status(403).json({
-        success: false,
-        message:
-          "Your account is locked. Please contact support or reset your password.",
-        reason: user.lock_reason,
-        lockedAt: user.locked_at,
-      });
-    }
-
-    // 3. ตรวจสอบรหัสผ่าน
-    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
-
-    if (!isPasswordValid) {
-      const currentAttempts = (user.failed_login_attempts || 0) + 1;
-
-      // ตรวจสอบว่าจำนวนครั้งที่ผิดถึงเกณฑ์ล็อกหรือไม่
-      if (currentAttempts >= MAX_FAILED_ATTEMPTS) {
-        // ล็อกบัญชีทันที และเคลียร์ session เดิมทั้งหมด
-        await pool.query(
-          `UPDATE users 
-           SET is_locked = TRUE, 
-               locked_at = CURRENT_TIMESTAMP, 
-               lock_reason = 'Too many failed login attempts',
-               failed_login_attempts = $1,
-               updated_at = CURRENT_TIMESTAMP
-           WHERE id = $2`,
-          [currentAttempts, user.id],
-        );
-
-        await pool.query("DELETE FROM refresh_tokens WHERE user_id = $1", [
-          user.id,
-        ]);
-
-        return res.status(403).json({
-          success: false,
-          message: `Account has been locked due to ${MAX_FAILED_ATTEMPTS} consecutive failed attempts.`,
-        });
-      }
-
-      // หากยังไม่ถึงเกณฑ์ ให้อัปเดตตัวนับ failed_login_attempts
-      await pool.query(
-        `UPDATE users 
-         SET failed_login_attempts = $1, updated_at = CURRENT_TIMESTAMP 
-         WHERE id = $2`,
-        [currentAttempts, user.id],
-      );
-
-      const remainingAttempts = MAX_FAILED_ATTEMPTS - currentAttempts;
-      return res.status(401).json({
-        success: false,
-        message: `Invalid email or password. ${remainingAttempts} attempt(s) remaining before account lockout.`,
-      });
-    }
-
-    // 4. ถ้ารหัสผ่านถูกต้อง: รีเซ็ตจำนวนครั้งที่ล็อกอินผิดกลับเป็น 0
-    if (user.failed_login_attempts > 0) {
-      await pool.query(
-        `UPDATE users 
-         SET failed_login_attempts = 0, updated_at = CURRENT_TIMESTAMP 
-         WHERE id = $1`,
-        [user.id],
-      );
-    }
-
-    // 5. ออก Tokens
-    const { accessToken, refreshToken } = generateTokens(user);
-
-    const tokenHash = crypto
-      .createHash("sha256")
-      .update(refreshToken)
-      .digest("hex");
-
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-    await pool.query(
-      `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-       VALUES ($1, $2, $3)`,
-      [user.id, tokenHash, expiresAt],
-    );
-
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: "Login successful",
-      accessToken,
-      refreshToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        isEmailVerified: user.is_email_verified,
-      },
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-exports.logout = async (req, res, next) => {
-  try {
-    const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
-
-    if (!refreshToken) {
-      return res.status(400).json({
-        success: false,
-        message: "Refresh token is required to logout",
-      });
-    }
-
-    // 1. ตรวจสอบ Signature ของ JWT เพื่อกัน Token มั่ว
-    try {
-      jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
-    } catch (err) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid or expired refresh token",
-      });
-    }
-
-    // 2. แฮชและสั่งลบออกจากตาราง
-    const tokenHash = crypto
-      .createHash("sha256")
-      .update(refreshToken)
-      .digest("hex");
-
-    const deleteResult = await pool.query(
-      "DELETE FROM refresh_tokens WHERE token_hash = $1",
-      [tokenHash],
-    );
-
-    // 3. ตรวจสอบว่ามีแถวถูกลบจริงหรือไม่
-    if (deleteResult.rowCount === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Token not found or already logged out",
-      });
-    }
-
-    // 4. ล้าง Cookie เมื่อตรวจสอบผ่านทั้งหมด
-    res.clearCookie("refreshToken", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: "Logged out successfully",
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-exports.refreshToken = async (req, res, next) => {
-  try {
-    // ดึง Refresh Token จาก Cookie (หรือจาก Request Body)
-    const token = req.cookies?.refreshToken || req.body?.refreshToken;
-
-    if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: "Refresh token is missing",
-      });
-    }
-
-    // 1. ตรวจสอบความถูกต้องของ JWT Signature
-    let decoded;
-    try {
-      decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
-    } catch (err) {
-      return res.status(403).json({
-        success: false,
-        message: "Invalid or expired refresh token",
-      });
-    }
-
-    // 2. ตรวจสอบว่า Token Hash มีอยู่ใน Database และยังไม่หมดอายุ
-    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
-
-    const tokenCheck = await pool.query(
-      `SELECT id, user_id FROM refresh_tokens 
-       WHERE token_hash = $1 AND expires_at > CURRENT_TIMESTAMP;`,
-      [tokenHash],
-    );
-
-    if (tokenCheck.rows.length === 0) {
-      return res.status(403).json({
-        success: false,
-        message: "Refresh token revoked or expired",
-      });
-    }
-
-    // 3. Token Rotation (ลบ Token เก่าทิ้ง แล้วสร้าง Token ใหม่คู่กัน)
-    const oldTokenId = tokenCheck.rows[0].id;
-    const userId = tokenCheck.rows[0].user_id;
-
-    const { accessToken, refreshToken: newRefreshToken } = generateTokens({
-      id: userId,
-      email: decoded.email,
-    });
-
-    const newHash = crypto
-      .createHash("sha256")
-      .update(newRefreshToken)
-      .digest("hex");
-    const newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-    // ทำงานแบบ Transaction โดยดึง client ออกมาจาก pool
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      await client.query("DELETE FROM refresh_tokens WHERE id = $1;", [
-        oldTokenId,
-      ]);
-      await client.query(
-        `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-         VALUES ($1, $2, $3);`,
-        [userId, newHash, newExpiresAt],
-      );
-      await client.query("COMMIT");
-    } catch (dbErr) {
-      await client.query("ROLLBACK");
-      throw dbErr;
-    } finally {
-      client.release();
-    }
-
-    // 4. ตั้งค่า Cookie ใหม่
-    res.cookie("refreshToken", newRefreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
-
-    return res.status(200).json({
-      success: true,
-      accessToken,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-exports.sendPhoneOtp = async (req, res, next) => {
-  try {
-    const { phoneNumber } = req.body;
-
-    if (!phoneNumber) {
-      return res.status(400).json({
-        success: false,
-        message: "Phone number is required",
-      });
-    }
-
-    const cleanPhone = String(phoneNumber).trim();
-
-    // 1. ตรวจสอบว่าเบอร์นี้มีอยู่ในระบบหรือไม่
-    const userCheck = await pool.query(
-      "SELECT id, is_phone_verified FROM users WHERE phone_number = $1",
-      [cleanPhone],
-    );
-
-    if (userCheck.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "User with this phone number does not exist",
-      });
-    }
-
-    if (userCheck.rows[0].is_phone_verified) {
-      return res.status(400).json({
-        success: false,
-        message: "This phone number is already verified",
-      });
-    }
-
-    // 2. ป้องกัน Spam (Cool-down 60 วินาที)
-    // const recentOtpCheck = await pool.query(
-    //   `SELECT created_at FROM otps
-    //    WHERE target = $1 AND otp_type = 'PHONE_VERIFICATION' AND is_used = FALSE
-    //    ORDER BY created_at DESC LIMIT 1`,
-    //   [cleanPhone]
-    // );
-
-    // if (recentOtpCheck.rows.length > 0) {
-    //   const lastSent = new Date(recentOtpCheck.rows[0].created_at).getTime();
-    //   const diffSeconds = Math.floor((Date.now() - lastSent) / 1000);
-
-    //   if (diffSeconds < 60) {
-    //     return res.status(429).json({
-    //       success: false,
-    //       message: `Please wait ${60 - diffSeconds} seconds before requesting a new OTP`,
-    //     });
-    //   }
-    // }
-
-    // 3. สร้าง OTP และตั้งอายุ 5 นาที
-    const { otpCode, otpHash } = generateOtp();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-
-    // 4. บันทึก SHA-256 Hash ลงตาราง otps
-    await pool.query(
-      `INSERT INTO otps (target, otp_type, otp_code_hash, expires_at)
-       VALUES ($1, 'PHONE_VERIFICATION', $2, $3)`,
-      [cleanPhone, otpHash, expiresAt],
-    );
-
-    // 5. ส่ง SMS ผ่าน Twilio utility
-    await sendSms({
-      to: "66" + cleanPhone,
-      message: `Your verification code is: ${otpCode}. Valid for 5 minutes.`,
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: "OTP sent to phone successfully",
-      devOtpPreview:
-        process.env.NODE_ENV === "development" ? otpCode : undefined,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
 exports.sendEmailOtp = async (req, res, next) => {
   try {
     const { email } = req.body;
@@ -535,97 +121,9 @@ exports.sendEmailOtp = async (req, res, next) => {
     next(error);
   }
 };
-exports.verifyPhoneOtp = async (req, res, next) => {
-  try {
-    const { phoneNumber, otpCode } = req.body;
 
-    if (!phoneNumber || !otpCode) {
-      return res.status(400).json({
-        success: false,
-        message: "Phone number and OTP code are required",
-      });
-    }
-
-    const cleanPhone = String(phoneNumber).trim();
-    const incomingHash = crypto
-      .createHash("sha256")
-      .update(String(otpCode).trim())
-      .digest("hex");
-
-    // 1. ดึง OTP รายการล่าสุดที่ยังไม่หมดอายุและยังไม่ได้ใช้
-    const otpQuery = `
-      SELECT id, otp_code_hash, attempts, max_attempts 
-      FROM otps
-      WHERE target = $1 
-        AND otp_type = 'PHONE_VERIFICATION'
-        AND is_used = FALSE 
-        AND expires_at > CURRENT_TIMESTAMP
-      ORDER BY created_at DESC 
-      LIMIT 1;
-    `;
-    const otpResult = await pool.query(otpQuery, [cleanPhone]);
-
-    if (otpResult.rows.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid or expired OTP. Please request a new one.",
-      });
-    }
-
-    const record = otpResult.rows[0];
-
-    // 2. ป้องกัน Brute-force: ตรวจสอบจำนวนครั้งที่ลองกรอก
-    if (record.attempts >= record.max_attempts) {
-      return res.status(429).json({
-        success: false,
-        message: "Too many failed attempts. This OTP has been invalidated.",
-      });
-    }
-
-    // 3. ตรวจสอบความถูกต้องของรหัส OTP
-    if (record.otp_code_hash !== incomingHash) {
-      const nextAttempt = record.attempts + 1;
-      await pool.query("UPDATE otps SET attempts = $1 WHERE id = $2", [
-        nextAttempt,
-        record.id,
-      ]);
-
-      const remaining = record.max_attempts - nextAttempt;
-      return res.status(400).json({
-        success: false,
-        message:
-          remaining > 0
-            ? `Incorrect OTP. ${remaining} attempts remaining.`
-            : "Incorrect OTP. Maximum attempts reached.",
-      });
-    }
-
-    // 4. บันทึกผลสำเร็จแบบ Transaction
-    await pool.query("BEGIN");
-
-    // ปิดสถานะ OTP
-    await pool.query("UPDATE otps SET is_used = TRUE WHERE id = $1", [
-      record.id,
-    ]);
-
-    // อัปเดตสถานะผู้ใช้
-    await pool.query(
-      "UPDATE users SET is_phone_verified = TRUE WHERE phone_number = $1",
-      [cleanPhone],
-    );
-
-    await pool.query("COMMIT");
-
-    return res.status(200).json({
-      success: true,
-      message: "Phone number verified successfully",
-    });
-  } catch (error) {
-    await pool.query("ROLLBACK");
-    next(error);
-  }
-};
 exports.verifyEmailOtp = async (req, res, next) => {
+  const client = await pool.connect();
   try {
     const { email, otpCode } = req.body;
 
@@ -653,7 +151,7 @@ exports.verifyEmailOtp = async (req, res, next) => {
       ORDER BY created_at DESC 
       LIMIT 1;
     `;
-    const otpResult = await pool.query(otpQuery, [normalizedEmail]);
+    const otpResult = await client.query(otpQuery, [normalizedEmail]);
 
     if (otpResult.rows.length === 0) {
       return res.status(400).json({
@@ -675,7 +173,7 @@ exports.verifyEmailOtp = async (req, res, next) => {
     // 3. ตรวจสอบความถูกต้องของรหัส
     if (record.otp_code_hash !== incomingHash) {
       const nextAttempt = record.attempts + 1;
-      await pool.query("UPDATE otps SET attempts = $1 WHERE id = $2", [
+      await client.query("UPDATE otps SET attempts = $1 WHERE id = $2", [
         nextAttempt,
         record.id,
       ]);
@@ -691,28 +189,30 @@ exports.verifyEmailOtp = async (req, res, next) => {
     }
 
     // 4. ถ้ารหัสถูกต้อง: อัปเดตทั้ง otps และ users พร้อมกัน
-    await pool.query("BEGIN");
+    await client.query("BEGIN");
 
     // มาร์ก OTP ว่าถูกใช้งานแล้ว
-    await pool.query("UPDATE otps SET is_used = TRUE WHERE id = $1", [
+    await client.query("UPDATE otps SET is_used = TRUE WHERE id = $1", [
       record.id,
     ]);
 
     // ปรับสถานะอีเมลของ user ให้ผ่านการยืนยัน
-    await pool.query(
+    await client.query(
       "UPDATE users SET is_email_verified = TRUE WHERE email = $1",
       [normalizedEmail],
     );
 
-    await pool.query("COMMIT");
+    await client.query("COMMIT");
 
     return res.status(200).json({
       success: true,
       message: "Email verified successfully",
     });
   } catch (error) {
-    await pool.query("ROLLBACK");
+    await client.query("ROLLBACK");
     next(error);
+  } finally {
+    client.release();
   }
 };
 // ==========================================================

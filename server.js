@@ -1,56 +1,26 @@
-const express = require("express");
-const dotenv = require("dotenv");
-const app = express();
-const auth = require('./routes/auth');
-const { connectRabbitMQ } = require("./config/rabbitmq");
-const cors = require("cors");
+// Load configuration before importing modules that use it. Injected environment wins.
+require('dotenv').config({ path: process.env.CONFIG_FILE || './config/config.env', quiet: true });
+const { createApp } = require('./app');
+const pool = require('./config/db');
+const { migrate } = require('./scripts/migrate');
+const { connectRabbitMQ } = require('./config/rabbitmq');
 
-app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:3000",
-  credentials: true,
-}));
-
-// Load env vars
-dotenv.config({ path: "./config/config.env" });
-
-// Connect Database
-require('./config/db');
-
-//Parse
-app.use(express.json());
-
-// Call Routes
-app.use('/api/v1/auth',auth);
-
-const PORT = process.env.PORT || 5000;
-const server = app.listen(
-  PORT,
-  console.log(
-    "Server running in ",
-    process.env.NODE_ENV,
-    " mode on port ",
-    PORT,
-  ),
-);
-
-const startServer = async () => {
-  try {
-    // 1. รอเชื่อมต่อ RabbitMQ ให้เสร็จก่อน
-    await connectRabbitMQ();
-
-    // 2. เมื่อพร้อมแล้วค่อยเปิดพอร์ตรับ Request
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-    });
-  } catch (error) {
-    console.error("Failed to bootstrap server:", error);
-    process.exit(1);
+async function startServer() {
+  if (!(process.env.ACCESS_TOKEN_SECRET || process.env.JWT_SECRET) || !process.env.REFRESH_TOKEN_SECRET) {
+    throw new Error('Access and refresh signing keys must be configured');
   }
-};
-
-startServer();
-//Handle unhandled promise rejections
-process.on("unhandledRejection", (err, promise) => {
-    console.log(`Error: ${err.message}`)
-    server.close(()=>process.exit(1));
-});
+  await pool.query('SELECT 1');
+  if (process.env.AUTO_MIGRATE === 'true') await migrate();
+  if (process.env.RABBITMQ_REQUIRED !== 'false') await connectRabbitMQ();
+  const app = createApp();
+  const server = app.listen(process.env.PORT || 5000, '0.0.0.0', () => console.log(`Identity listening on port ${process.env.PORT || 5000}`));
+  return server;
+}
+if (require.main === module) {
+  startServer().then(server => {
+    for (const signal of ['SIGINT', 'SIGTERM']) {
+      process.on(signal, () => server.close(() => pool.end().finally(() => process.exit(0))));
+    }
+  }).catch(error => { console.error('Identity startup failed:', error.message); process.exit(1); });
+}
+module.exports = { startServer };

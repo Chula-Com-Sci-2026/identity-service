@@ -41,9 +41,7 @@ const sendSms = async ({ to, message }) => {
     return result;
   }
 
-  // Fallback กรณีไม่ได้ใส่ Twilio Key (แสดงใน Console ตอน Dev)
-  console.log(`[DEV SMS MOCK] To: ${formattedTo} | Content: ${message}`);
-  return { sid: 'mock_sid' };
+  throw Object.assign(new Error('SMS provider is not configured; select OTP_DELIVERY=console explicitly for local demos'), { status: 503 });
 };
 
 module.exports = sendSms;

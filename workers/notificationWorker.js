@@ -34,7 +34,9 @@ const startWorker = async () => {
               </div>
             `;
 
-            await sendEmail({
+            if (process.env.EMAIL_DELIVERY === "console") {
+              console.log(`[LOCAL CONSOLE EMAIL] target=${payload.target} code=${payload.otpCode} (not an email delivery)`);
+            } else await sendEmail({
               to: payload.target,
               subject: payload.subject,
               html: emailHtml,

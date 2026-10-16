@@ -1,0 +1,33 @@
+name: Identity regression tests
+on:
+  pull_request:
+  push:
+    branches: [main, 'fix/**']
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: identity_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd 'pg_isready -U postgres'
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/identity_test
+      ACCESS_TOKEN_SECRET: test-only-access-signing-key-not-for-deployment
+      REFRESH_TOKEN_SECRET: test-only-refresh-signing-key-not-for-deployment
+      RABBITMQ_REQUIRED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci --omit=dev
+      - run: npm test

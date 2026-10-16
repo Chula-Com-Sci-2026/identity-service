@@ -1,54 +1,60 @@
+name: team-identity
 services:
-  rabbitmq:
-    image: rabbitmq:3-management
-    container_name: identity_rabbitmq
-    ports:
-      - "5672:5672"
-      - "15672:15672"
+  postgres:
+    image: postgres:16-alpine
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Use --env-file config/config.env}
+      DB_USER: ${DB_USER:-identity}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-identity}
+    volumes:
+      - identity_postgres:/var/lib/postgresql/data
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/01-identity.sh:ro
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      test: [CMD-SHELL, pg_isready -U postgres]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  rabbitmq:
+    image: rabbitmq:4.3.6-management
+    environment:
+      RABBITMQ_DEFAULT_USER: identity
+      RABBITMQ_DEFAULT_PASS: ${BROKER_PASSWORD:?Configure BROKER_PASSWORD}
+    ports:
+      - '127.0.0.1:15679:15672'
+    volumes:
+      - identity_rabbitmq:/var/lib/rabbitmq
+    healthcheck:
+      test: [CMD, rabbitmq-diagnostics, -q, ping]
       interval: 5s
       timeout: 5s
-      retries: 5
-    networks:
-      - app_network
-
+      retries: 20
   identity-api:
     build: .
-    container_name: identity_service
-    restart: always
+    restart: unless-stopped
     ports:
-      - "5000:5000"
-    env_file:
-      - ./config/config.env
+      - '127.0.0.1:5000:5000'
+    env_file: ./config/config.env
     environment:
-      - PORT=5000
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
-      - DB_HOST=host.docker.internal
+      DB_HOST: postgres
+      RABBITMQ_URL: amqp://identity:${BROKER_PASSWORD}@rabbitmq:5672
     depends_on:
-      rabbitmq:
-        condition: service_healthy
-    networks:
-      - app_network
-
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://localhost:5000/up').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
   identity-worker:
     build: .
-    container_name: identity_worker
-    restart: alwaysภภ
-    command: ["node", "workers/notificationWorker.js"]
-    env_file:
-      - ./config/config.env
+    restart: unless-stopped
+    command: [node, workers/notificationWorker.js]
+    env_file: ./config/config.env
     environment:
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      RABBITMQ_URL: amqp://identity:${BROKER_PASSWORD}@rabbitmq:5672
     depends_on:
-      rabbitmq:
-        condition: service_healthy
-    networks:
-      - app_network
-
-networks:
-  app_network:
-    driver: bridge
+      rabbitmq: {condition: service_healthy}
+volumes:
+  identity_postgres:
+  identity_rabbitmq:
