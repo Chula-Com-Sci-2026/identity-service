@@ -14,7 +14,7 @@ jobs:
           POSTGRES_DB: identity_test
         ports: ['5432:5432']
         options: >-
-          --health-cmd 'pg_isready -U postgres'
+          --health-cmd=pg_isready
           --health-interval 3s
           --health-timeout 3s
           --health-retries 20
