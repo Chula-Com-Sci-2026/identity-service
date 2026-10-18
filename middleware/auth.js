@@ -1,39 +1,13 @@
-const jwt = require("jsonwebtoken");
-
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers["authorization"];
-
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({
-      success: false,
-      message: "Access denied. No token provided or invalid format.",
-    });
-  }
-
-
-  const token = authHeader.split(" ")[1];
-
+const jwt = require('jsonwebtoken');
+const { accessKey, issuer, audience } = require('../services/session');
+function authenticateToken(req, res, next) {
+  const header = req.headers.authorization || '';
+  if (!header.startsWith('Bearer ')) return res.status(401).json({ message: 'Valid access token required' });
   try {
-    const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
-
-    req.user = decoded;
-
+    req.user = jwt.verify(header.slice(7), accessKey(), { algorithms: ['HS256'], issuer: issuer(), audience: audience() });
+    if (!/^[0-9a-f-]{36}$/i.test(req.user.sub || '')) throw new Error('Invalid subject');
     next();
-  } catch (error) {
-    if (error.name === "TokenExpiredError") {
-      return res.status(401).json({
-        success: false,
-        code: "TOKEN_EXPIRED",
-        message: "Token has expired. Please refresh your token.",
-      });
-    }
-
-    return res.status(403).json({
-      success: false,
-      code: "INVALID_TOKEN",
-      message: "Invalid token.",
-    });
-  }
-};
-
+  } catch { return res.status(401).json({ message: 'Invalid or expired access token' }); }
+}
 module.exports = authenticateToken;
+module.exports.protect = authenticateToken;

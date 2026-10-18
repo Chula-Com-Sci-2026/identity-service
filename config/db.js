@@ -2,9 +2,9 @@ const path = require('path');
 const { Pool } = require('pg');
 
 // Ensure correct path to config.env if not already loaded globally
-require('dotenv').config({ path: path.resolve(__dirname, 'config.env') });
+require('dotenv').config({ path: process.env.CONFIG_FILE || path.resolve(__dirname, 'config.env'), quiet: true });
 
-const pool = new Pool({
+const pool = new Pool(process.env.DATABASE_URL ? { connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 2000 } : {
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT, 10) || 5432,
   user: process.env.DB_USER || 'postgres',
@@ -20,17 +20,5 @@ pool.on('error', (err) => {
   console.error('Unexpected error on idle PostgreSQL client:', err);
   process.exit(-1);
 });
-
-const testDbConnection = async () => {
-  try {
-    const client = await pool.connect();
-    console.log('PostgreSQL connected successfully');
-    client.release();
-  } catch (err) {
-    console.error('Failed to connect to PostgreSQL:', err.message);
-  }
-};
-
-testDbConnection();
 
 module.exports = pool;

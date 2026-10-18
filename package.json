@@ -4,9 +4,10 @@
   "description": "Identify Service",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test --test-concurrency=1 test/*.test.js",
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "migrate": "node scripts/migrate.js"
   },
   "repository": {
     "type": "git",
@@ -31,7 +32,8 @@
     "nodemailer": "^10.1.1",
     "pg": "^8.23.1",
     "resend": "^6.33.0",
-    "twilio": "^6.2.0"
+    "twilio": "^6.2.0",
+    "cookie-parser": "1.4.7"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

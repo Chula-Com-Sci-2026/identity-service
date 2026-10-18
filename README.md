@@ -1,5 +1,7 @@
 # Identity Service
 
+For the runnable Deliverable 4 branch, updated setup, API compatibility and automated tests, start with [DELIVERABLE_4_INTEGRATION.md](DELIVERABLE_4_INTEGRATION.md). The earlier examples below describe the original service; use the new guide for current Compose/configuration commands.
+
 An Authentication & Identity Management microservice built with **Node.js (Express)**. It leverages **RabbitMQ** for asynchronous background notification processing (Email and SMS delivery via a dedicated background Worker), all containerized with **Docker Compose**.
 
 ## 🏗 System Architecture
