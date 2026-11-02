@@ -50,27 +50,6 @@ exports.sendEmailOtp = async (req, res, next) => {
       });
     }
 
-    // 2. ป้องกัน Spam (Cool-down 60 วินาที)
-    // const recentOtpCheck = await pool.query(
-    //   `SELECT created_at FROM otps
-    //    WHERE target = $1 AND otp_type = 'EMAIL_VERIFICATION' AND is_used = FALSE
-    //    ORDER BY created_at DESC LIMIT 1`,
-    //   [normalizedEmail]
-    // );
-
-    // if (recentOtpCheck.rows.length > 0) {
-    //   const lastSent = new Date(recentOtpCheck.rows[0].created_at).getTime();
-    //   const now = Date.now();
-    //   const diffSeconds = Math.floor((now - lastSent) / 1000);
-
-    //   if (diffSeconds < 60) {
-    //     return res.status(429).json({
-    //       success: false,
-    //       message: `Please wait ${60 - diffSeconds} seconds before requesting a new OTP`,
-    //     });
-    //   }
-    // }
-
     // 3. สร้าง OTP และตั้งอายุ 5 นาที
     const { otpCode, otpHash } = generateOtp();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
@@ -98,11 +77,8 @@ exports.sendEmailOtp = async (req, res, next) => {
   </div>
 `;
 
-    // await sendEmail({
-    //   to: normalizedEmail,
-    //   subject: "OTP for E-mail Address Verification",
-    //   html: emailHtml,
-    // });
+
+
     await sendNotification({
       channelType: "EMAIL",
       target: normalizedEmail,
@@ -277,11 +253,7 @@ exports.requestPasswordReset = async (req, res, next) => {
       </div>
     `;
 
-    // await sendEmail({
-    //   to: normalizedEmail,
-    //   subject: "Password Reset Verification Code",
-    //   html: emailHtml,
-    // });
+ 
     await sendNotification({
       channelType: "EMAIL",
       target: normalizedEmail,
