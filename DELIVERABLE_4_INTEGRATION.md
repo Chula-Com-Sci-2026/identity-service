@@ -46,7 +46,7 @@ Added compatibility:
 
 The local gateway can forward these paths without translating user IDs. Refresh cookies must be forwarded in both directions. Tokens use issuer `cant-run-alone-local`, audience `cant-run-alone-services`; the refresh audience has suffix `-refresh`. Fifteen-minute access tokens remain valid until expiry after logout. This local HS256 setup is not a production asymmetric-key trust architecture.
 
-If using the multi-repository demo, `local-integration/compose.team-identity.yaml` selects this branch's checkout as the Identity build context, uses a fresh `identity_team` database and points the gateway to port 5000. The original Python Identity repo/database are retained for rollback. All identity UUIDs must match Profile/Scheduling/Reputation fixtures; `seed-demo.js` provides Ray and Mali with stable UUIDs and password `runner123`. These seeded verification flags are development fixtures.
+If using the multi-repository demo, `running-buddy-integration/compose.team-identity.yaml` selects this branch's checkout as the Identity build context, uses a fresh `identity_team` database and points the gateway to port 5000. The original Python Identity repo/database are retained for rollback. All identity UUIDs must match Profile/Scheduling/Reputation fixtures; `seed-demo.js` provides Ray and Mali with stable UUIDs and password `runner123`. These seeded verification flags are development fixtures.
 
 ## Tests
 
